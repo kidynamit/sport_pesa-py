@@ -3,6 +3,7 @@
 from __future__ import print_function
 
 from sports_parser import SoccerParser, NULL_STR
+from sports_pca import SoccerPCA
 from pyspark import SparkContext
 
 from pyspark.mllib.classification import LogisticRegressionWithSGD, \
@@ -25,6 +26,7 @@ KEYWORD_ARGS =          "KEYWORD_ARGS"
 LABELS =                "LABELS"
 LABEL_REDUCTION_EXPR =  "LABEL_REDUCTION_EXPRESSION"
 VAR_NAME =              "data_entry"
+CONFIG_FILENAME =       "pyspark.conf"
 
 def _gen_labeled_points(data_entry):
     label_expr, data_start = data_entry[0]
@@ -38,10 +40,12 @@ def _gen_labeled_points(data_entry):
     data_entry = data_entry[data_start:]
     _total = 0.0
     for i, d in zip(range(len(data_entry)), data_entry):
-        if d:
+        if d == None:
+            d = 0.0
+        if not d == 0.0:
             idx.append(i)
             data.append(d)
-            _total += d
+            _total += abs(d)
     data = [ d/float(_total) for d in data] ## normalizing with L^1
     _feature = SparseVector(size, idx, data)
     return LabeledPoint(label, _feature)
@@ -51,7 +55,6 @@ class SoccerSpark:
     sp = None
     collated_file = None
     CONFIG_DATA = None
-    CONFIG_FILENAME = "pyspark.conf"
 
     __parsed = False
     __checked_labels = False
@@ -61,8 +64,9 @@ class SoccerSpark:
     _traineridx = None
 
     def _load_config(self):
-        with open(self.CONFIG_FILENAME, "r") as config_file:
+        with open(CONFIG_FILENAME, "r") as config_file:
             self.CONFIG_DATA = json_load(config_file)
+
     def _gen_label_expression(self, title_dict, var_name="data_entry"):
         self._labelidx = self._labelidx % len(self.CONFIG_DATA[LABEL_REDUCTION_EXPR])
         expr = self.CONFIG_DATA[LABEL_REDUCTION_EXPR][self._labelidx]
@@ -197,6 +201,10 @@ class SoccerSpark:
     def gen_labeled_pointsRDD(self):
         if not self.__nulls_removed or not self.__checked_labels or not self.__parsed:
             return None
+
+        # Perform PCA
+        pca = SoccerPCA(self.collated_file.name, len(self.CONFIG_DATA[LABELS]))
+        pca.perform_pca(9)
 
         self.__init_spark_context__()
 
@@ -333,7 +341,8 @@ def main ():
     ss.check_labels()
     ss.remove_null_featured()
     trainers = [ \
-                NaiveBayes ]
+                LogisticRegressionWithSGD,\
+                SVMWithSGD]
     for trainer in trainers:
         ss.set_trainer(trainer)
         while (ss.update_labelidx()):
