@@ -60,3 +60,9 @@ target/
 
 #Ipython Notebook
 .ipynb_checkpoints
+
+#Data ignore
+data/*
+
+# Temporary outputs ignore
+out/*
