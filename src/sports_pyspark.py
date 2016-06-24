@@ -46,7 +46,8 @@ def _gen_labeled_points(data_entry):
             idx.append(i)
             data.append(d)
             _total += abs(d)
-    data = [ d/float(_total) for d in data] ## normalizing with L^1
+    ## TODO apply a different p for L^p
+    data = [ abs(d)/float(_total) for d in data] ## normalizing with L^1
     _feature = SparseVector(size, idx, data)
     return LabeledPoint(label, _feature)
 
@@ -342,6 +343,7 @@ def main ():
     ss.remove_null_featured()
     trainers = [ \
                 LogisticRegressionWithSGD,\
+                NaiveBayes,
                 SVMWithSGD]
     for trainer in trainers:
         ss.set_trainer(trainer)
